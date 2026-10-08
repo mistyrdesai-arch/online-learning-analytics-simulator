@@ -1,0 +1,111 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Online Learning Analytics Simulator</title>
+<style>
+:root{--bg:#eef3f3;--card:#fff;--tx:#1b1f23;--mut:#5b6670;--ac:#1a9a8a;--ac2:#e8590c;--bd:#d5dee0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181b;--card:#1d2327;--tx:#e8eef0;--mut:#9aa7ae;--bd:#2d373d}}
+:root[data-theme="dark"]{--bg:#14181b;--card:#1d2327;--tx:#e8eef0;--mut:#9aa7ae;--bd:#2d373d}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0 0 2px}h2{font-size:16px;margin:0 0 10px}.sub{color:var(--mut);margin:0 0 14px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 18px}
+label{display:block;font-size:13px;color:var(--mut)}label b{color:var(--tx);float:right}
+input[type=range]{width:100%;accent-color:var(--ac)}
+button,select,input[type=text],input[type=file]{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);max-width:100%}
+button{background:var(--ac);color:#fff;border-color:var(--ac);cursor:pointer}button.alt{background:var(--card);color:var(--tx);border-color:var(--bd)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{border:1px solid var(--bd);border-radius:10px;padding:10px}.kpi small{color:var(--mut);display:block;font-size:12px}.kpi span{font-size:22px;font-weight:700}
+canvas{width:100%;height:280px;display:block}
+.bars div.r{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}.bars .t{width:130px;flex:none}.bars .b{height:18px;border-radius:4px;background:var(--ac)}.bars .d{background:var(--ac2)}
+.tw{overflow-x:auto}table{border-collapse:collapse;font-size:12.5px;width:100%}th,td{border-bottom:1px solid var(--bd);padding:4px 8px;text-align:right;white-space:nowrap}th{color:var(--mut)}
+code,.out{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}.out{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;margin-top:8px;white-space:pre-wrap;word-break:break-all}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.row>*{flex:1 1 150px}.leg{font-size:12px;color:var(--mut)}.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 10px}
+</style></head><body><main>
+<h1>Online Learning Analytics — Simulator</h1>
+<p class="sub">PDS PBL-2 · Based on the “Online Learning Engagement Dataset” structure (demographics, internet access, study habits, activities, engagement, performance, dropout). Synthetic data by default — or load the real Kaggle CSV below.</p>
+
+<div class="card"><h2>1 · Simulation controls</h2><div class="grid" id="ctl"></div>
+<div class="row" style="margin-top:12px"><button id="roll">Re-run (new random seed)</button><button class="alt" id="reset">Reset sliders</button></div></div>
+
+<div class="card"><h2>Results <span class="sub" id="src"></span></h2><div class="kpis" id="kpis"></div></div>
+
+<div class="card"><h2>2 · Engagement vs academic performance</h2><canvas id="cv"></canvas>
+<div class="leg"><i style="background:var(--ac)"></i>Retained<i style="background:var(--ac2)"></i>Dropped out<span> · line = linear trend</span></div></div>
+
+<div class="card"><h2>3 · Students grouped by engagement level</h2><div class="bars" id="bars"></div></div>
+
+<div class="card"><h2>4 · Sample records</h2><div class="tw"><table id="tb"></table></div></div>
+
+<div class="card"><h2>5 · Use the real Kaggle dataset</h2>
+<p class="sub">Download the CSV from Kaggle, then load it here. Columns are auto-detected with regular expressions (study hours, logins, video, assignment, attendance, engagement, score, dropout) — the same <code>re</code> idea from your “Beyond Syllabus” slides.</p>
+<input type="file" id="csv" accept=".csv"><div class="out" id="map">No file loaded — showing synthetic data.</div></div>
+
+<div class="card"><h2>6 · Regex lab (Beyond Syllabus)</h2>
+<div class="row"><input type="text" id="rt" value="Student: Misty123 | Contact: abc@gmail.com | Call: 9876543210"><select id="rp"><option value="\S+@\S+">\S+@\S+ (email)</option><option value="\d{10}">\d{10} (phone)</option><option value="[0-9]+">[0-9]+ (digits)</option><option value="\w+">\w+ (words)</option><option value="^Student">^Student</option><option value="9876543210$">9876543210$</option></select>
+<select id="rf"><option>re.search()</option><option>re.match()</option><option>re.findall()</option><option>re.sub()</option></select><input type="text" id="rr" value="[HIDDEN]" title="replacement for re.sub"></div>
+<div class="out" id="ro"></div></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const DEF={n:300,study:12,logins:8,video:60,assign:65,net:50,noise:8,thr:40};
+const SL=[["n","Students",50,2000,50],["study","Avg study hours / week",2,30,1],["logins","Avg logins / week",1,20,1],["video","Avg video completion %",10,95,5],["assign","Avg assignment completion %",10,95,5],["net","High-quality internet %",0,100,5],["noise","Randomness in scores (σ)",1,25,1],["thr","Dropout risk threshold (engagement)",20,70,2]];
+let P={...DEF},seed=7,rows=[],uploaded=false;
+$("ctl").innerHTML=SL.map(([k,l,a,b,s])=>`<label>${l}<b id="v_${k}"></b><input type="range" id="s_${k}" min="${a}" max="${b}" step="${s}"></label>`).join("");
+function sync(){SL.forEach(([k])=>{$("s_"+k).value=P[k];$("v_"+k).textContent=P[k]})}
+SL.forEach(([k])=>$("s_"+k).oninput=e=>{P[k]=+e.target.value;uploaded=false;run()});
+$("roll").onclick=()=>{seed=Math.floor(Math.random()*1e6);uploaded=false;run()};
+$("reset").onclick=()=>{P={...DEF};seed=7;uploaded=false;run()};
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const cl=(x,a,b)=>Math.max(a,Math.min(b,x));
+function gen(){const r=rng(seed),g=()=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r());const out=[];
+for(let i=1;i<=P.n;i++){const d=g(),u=r()*100,net=u<P.net?"High":u<P.net+(100-P.net)/2?"Medium":"Low",ne={Low:-1,Medium:0,High:1}[net];
+const study=cl(P.study+3*d+ne+g()*1.5,0,40),logins=cl(P.logins+2*d+ne*.8+g()*1.5,0,30),video=cl(P.video+12*d+ne*3+g()*8,0,100),assign=cl(P.assign+10*d+g()*8,0,100),attend=cl(70+8*d+g()*6,30,100);
+const eng=.25*study/40*100+.2*logins/30*100+.2*video+.2*assign+.15*attend;
+const score=cl(30+.5*eng+3*ne+g()*P.noise,0,100),pr=1/(1+Math.exp((eng-P.thr)/6));
+out.push({ID:i,Internet:net,Study_h:+study.toFixed(1),Logins:+logins.toFixed(1),Video_pct:+video.toFixed(0),Assign_pct:+assign.toFixed(0),Attend_pct:+attend.toFixed(0),Engagement:+eng.toFixed(1),Score:+score.toFixed(1),Dropout:r()<pr?1:0})}
+return out}
+const mean=a=>a.reduce((s,x)=>s+x,0)/(a.length||1);
+function corr(x,y){const mx=mean(x),my=mean(y);let a=0,b=0,c=0;x.forEach((v,i)=>{a+=(v-mx)*(y[i]-my);b+=(v-mx)**2;c+=(y[i]-my)**2});return a/Math.sqrt(b*c||1)}
+function render(){const E=rows.map(r=>r.Engagement),S=rows.map(r=>r.Score),D=rows.map(r=>r.Dropout);
+const k=[["Students",rows.length],["Avg engagement",mean(E).toFixed(1)],["Avg score",mean(S).toFixed(1)],["Dropout rate",(mean(D)*100).toFixed(1)+"%"],["Corr(engagement, score)",corr(E,S).toFixed(2)],["Corr(engagement, dropout)",corr(E,D).toFixed(2)]];
+$("kpis").innerHTML=k.map(([a,b])=>`<div class="kpi"><small>${a}</small><span>${b}</span></div>`).join("");
+$("src").textContent=uploaded?"· from your CSV":"· synthetic";
+const s=[...rows].sort((a,b)=>a.Engagement-b.Engagement),m=Math.ceil(s.length/3),gr=[["Low engagement",s.slice(0,m)],["Medium engagement",s.slice(m,2*m)],["High engagement",s.slice(2*m)]];
+$("bars").innerHTML=gr.map(([n,g])=>{const sc=mean(g.map(r=>r.Score)),dr=mean(g.map(r=>r.Dropout))*100,mx=Math.max(...S,1);return `<div class="r"><span class="t">${n}</span><div class="b" style="width:${sc/mx*45}%"></div><span>avg score ${sc.toFixed(1)}</span></div><div class="r"><span class="t"></span><div class="b d" style="width:${Math.max(dr,.5)*.45}%"></div><span>dropout ${dr.toFixed(1)}%</span></div>`}).join("");
+const ks=Object.keys(rows[0]);$("tb").innerHTML="<tr>"+ks.map(x=>`<th>${x}</th>`).join("")+"</tr>"+rows.slice(0,8).map(r=>"<tr>"+ks.map(x=>`<td>${r[x]}</td>`).join("")+"</tr>").join("");
+draw(E,S,D)}
+function draw(E,S,D){const c=$("cv"),dp=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*dp;c.height=h*dp;const x=c.getContext("2d");x.scale(dp,dp);
+const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
+const mnx=Math.min(...E),mxx=Math.max(...E),mny=Math.min(...S),mxy=Math.max(...S),L=40,B=28,T=8,R=8;
+const X=v=>L+(v-mnx)/(mxx-mnx||1)*(w-L-R),Y=v=>h-B-(v-mny)/(mxy-mny||1)*(h-B-T);
+x.strokeStyle=col("--bd");x.fillStyle=col("--mut");x.font="11px system-ui";x.lineWidth=1;
+for(let i=0;i<=4;i++){const yv=mny+(mxy-mny)*i/4,xv=mnx+(mxx-mnx)*i/4;x.beginPath();x.moveTo(L,Y(yv));x.lineTo(w-R,Y(yv));x.stroke();x.fillText(yv.toFixed(0),6,Y(yv)+4);x.fillText(xv.toFixed(0),X(xv)-8,h-10)}
+x.fillText("Engagement →",w/2-30,h-0);x.save();x.translate(10,h/2);x.rotate(-Math.PI/2);x.fillText("Score",0,0);x.restore();
+E.forEach((e,i)=>{x.fillStyle=D[i]?col("--ac2"):col("--ac");x.globalAlpha=.6;x.beginPath();x.arc(X(e),Y(S[i]),3,0,7);x.fill()});x.globalAlpha=1;
+const mx=mean(E),my=mean(S);let a=0,b=0;E.forEach((e,i)=>{a+=(e-mx)*(S[i]-my);b+=(e-mx)**2});const sl=a/(b||1),ic=my-sl*mx;
+x.strokeStyle=col("--tx");x.lineWidth=2;x.beginPath();x.moveTo(X(mnx),Y(sl*mnx+ic));x.lineTo(X(mxx),Y(sl*mxx+ic));x.stroke()}
+function run(){sync();rows=gen();render()}
+matchMedia("(prefers-color-scheme:dark)").onchange=()=>rows.length&&render();
+addEventListener("resize",()=>rows.length&&render());
+
+/* CSV loader with regex column detection */
+function parseCSV(t){const out=[];let r=[],f="",q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}else if(c=='"')q=true;else if(c==","){r.push(f);f=""}else if(c=="\n"||c=="\r"){if(c=="\r"&&t[i+1]=="\n")i++;r.push(f);f="";if(r.length>1||r[0])out.push(r);r=[]}else f+=c}
+if(f||r.length){r.push(f);out.push(r)}return out}
+const PAT={Study_h:/study|hour/i,Logins:/login|session/i,Video_pct:/video/i,Assign_pct:/assign|quiz/i,Attend_pct:/attend/i,Engagement:/engag/i,Score:/score|grade|perform|marks|gpa/i,Dropout:/drop/i};
+$("csv").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{
+const T=parseCSV(rd.result),H=T[0].map(s=>s.trim()),B=T.slice(1).filter(r=>r.length==H.length);if(!B.length)throw Error("no rows");
+const isNum=i=>B.slice(0,50).filter(r=>r[i]!==""&&!isNaN(+r[i])).length>25;
+const mp={};for(const k in PAT){const i=H.findIndex((h,j)=>PAT[k].test(h)&&(k=="Dropout"||isNum(j)));if(i>=0)mp[k]=i}
+if(mp.Score==null||(mp.Engagement==null&&Object.keys(mp).length<3))throw Error("could not find a score column and engagement columns");
+const feat=Object.keys(mp).filter(k=>!["Score","Dropout","Engagement"].includes(k)),mm={};feat.forEach(k=>{const v=B.map(r=>+r[mp[k]]).filter(x=>!isNaN(x));mm[k]=[Math.min(...v),Math.max(...v)]});
+rows=B.map((r,i)=>{const o={ID:i+1};feat.forEach(k=>o[k]=+r[mp[k]]);let eg;if(mp.Engagement!=null)eg=+r[mp.Engagement];else eg=mean(feat.map(k=>(+r[mp[k]]-mm[k][0])/((mm[k][1]-mm[k][0])||1)))*100;o.Engagement=+(+eg).toFixed(2);o.Score=+r[mp.Score];o.Dropout=mp.Dropout!=null?(/^(1|yes|true|y|drop)/i.test(r[mp.Dropout].trim())?1:0):0;return o}).filter(o=>!isNaN(o.Engagement)&&!isNaN(o.Score));
+uploaded=true;$("map").textContent="Detected columns (via regex):\n"+Object.entries(mp).map(([k,i])=>k+"  ←  "+H[i]).join("\n")+(mp.Engagement==null?"\nEngagement not found → computed as mean of min-max scaled activity columns (0–100).":"")+(mp.Dropout==null?"\nNo dropout column found → dropout shown as 0.":"")+"\nRows used: "+rows.length;render()}catch(er){$("map").textContent="Could not use this file: "+er.message}};rd.readAsText(f)};
+
+/* Regex lab */
+function lab(){const t=$("rt").value,p=$("rp").value,f=$("rf").value;let o;try{const re=new RegExp(p,f=="re.findall()"||f=="re.sub()"?"g":"");
+if(f=="re.search()"){const m=re.exec(t);o=m?`Match: ${m[0]}  (at index ${m.index})`:"None"}
+else if(f=="re.match()"){const m=new RegExp("^(?:"+p+")").exec(t);o=m?`Match at start: ${m[0]}`:"None (pattern is not at the beginning of the string)"}
+else if(f=="re.findall()"){o="["+(t.match(re)||[]).map(s=>"'"+s+"'").join(", ")+"]"}
+else o=t.replace(re,$("rr").value)}catch(e){o="Invalid pattern: "+e.message}$("ro").textContent=o}
+["rt","rp","rf","rr"].forEach(i=>$(i).oninput=lab);lab();run();
+</script></body></html>
